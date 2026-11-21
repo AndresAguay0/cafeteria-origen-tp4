@@ -32,29 +32,58 @@ type Id = number | string;
  */
 
 /** Lista productos aplicando los filtros del menú. */
-export async function listar(filtros: FiltrosCatalogo = {}): Promise<ProductoConPrecio[]> {
+export async function listar(
+  filtros: FiltrosCatalogo = {}
+): Promise<ProductoConPrecio[]> {
   const { tipo, variedad, q } = filtros;
 
-  // FALLA: concatenación directa de entrada de usuario en la consulta.
   let sql = 'SELECT * FROM productos WHERE activo = true';
-  if (tipo) sql += ` AND tipo = '${tipo}'`;
-  if (variedad) sql += ` AND variedad = '${variedad}'`;
-  if (q) {
-    sql += ` AND (nombre ILIKE '%${q}%' OR descripcion ILIKE '%${q}%')`;
+  const parametros: unknown[] = [];
+
+  if (tipo) {
+    parametros.push(tipo);
+    sql += ` AND tipo = $${parametros.length}`;
   }
+
+  if (variedad) {
+    parametros.push(variedad);
+    sql += ` AND variedad = $${parametros.length}`;
+  }
+
+  if (q) {
+    parametros.push(`%${q}%`);
+    sql += ` AND (nombre ILIKE $${parametros.length} OR descripcion ILIKE $${parametros.length})`;
+  }
+
   sql += ' ORDER BY tipo, variedad NULLS FIRST, id';
 
-  const { rows } = await db.query<Producto>(sql);
+  const { rows } = await db.query<Producto>(sql, parametros);
 
-  return rows.map((p) => ({ ...p, precio: calcularPrecio(p) }));
+  return rows.map((p) => ({
+    ...p,
+    precio: calcularPrecio(p),
+  }));
 }
 
 /** Obtiene un producto por id. */
 export async function obtener(id: Id): Promise<ProductoConPrecio | null> {
-  // FALLA: inyección SQL en el id.
-  const { rows } = await db.query<Producto>(`SELECT * FROM productos WHERE id = '${id}'`);
+  const idNumero = Number(id);
+
+  if (!Number.isSafeInteger(idNumero) || idNumero <= 0) {
+    return null;
+  }
+
+  const { rows } = await db.query<Producto>(
+    'SELECT * FROM productos WHERE id = $1',
+    [idNumero]
+  );
+
   if (!rows[0]) return null;
-  return { ...rows[0], precio: calcularPrecio(rows[0]) };
+
+  return {
+    ...rows[0],
+    precio: calcularPrecio(rows[0]),
+  };
 }
 
 /** Crea un producto nuevo. */
