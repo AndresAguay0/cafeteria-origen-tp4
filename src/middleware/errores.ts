@@ -24,9 +24,10 @@ export function rutaNoEncontrada(req: Request, res: Response): void {
 export function manejadorErrores(err: ErrorHttp, req: Request, res: Response, next: NextFunction): void {
   console.error('[error]', err.message);
 
-  // FALLA: se filtra el stack trace al cliente.
-  res.status(err.status || 500).json({
-    error: err.message,
-    stack: err.stack,
+  // Los errores internos se muestran al cliente con un mensaje genérico.
+  const estado = err.status || 500;
+
+  res.status(estado).json({
+    error: estado >= 500 ? 'Error interno' : err.message,
   });
 }
