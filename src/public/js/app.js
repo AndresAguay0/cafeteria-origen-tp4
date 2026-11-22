@@ -339,21 +339,32 @@
       }
 
       resp.data.comentarios.forEach(function (c) {
-        var articulo = crearElemento('article', 'review');
-        var encabezado = crearElemento('div', 'review-head');
+        var estrellas = '';
+        var i;
+        for (i = 0; i < Number(c.calificacion || 0); i++) estrellas += '★';
 
-        var autor = crearElemento('span', 'review-author', c.autor);
-        var estrellas = crearElemento(
-          'span',
-          'review-stars',
-          '★'.repeat(Math.max(0, Math.min(5, Number(c.calificacion) || 0)))
-        );
+        var articulo = document.createElement('article');
+        articulo.className = 'review';
+
+        var encabezado = document.createElement('div');
+        encabezado.className = 'review-head';
+
+        var autor = document.createElement('span');
+        autor.className = 'review-author';
+        autor.textContent = c.autor;
+
+        var estrellasElemento = document.createElement('span');
+        estrellasElemento.className = 'review-stars';
+        estrellasElemento.textContent = estrellas;
+
+        var texto = document.createElement('p');
+        texto.className = 'review-text';
+        texto.textContent = c.texto;
 
         encabezado.appendChild(autor);
-        encabezado.appendChild(estrellas);
-
+        encabezado.appendChild(estrellasElemento);
         articulo.appendChild(encabezado);
-        articulo.appendChild(crearElemento('p', 'review-text', c.texto));
+        articulo.appendChild(texto);
 
         cont.appendChild(articulo);
       });

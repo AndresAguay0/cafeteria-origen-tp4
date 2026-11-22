@@ -14,21 +14,9 @@ const router = express.Router();
 /**
  * Rutas del panel de administración.
  *
- * -----------------------------------------------------------------------------
- * FALLA — Autorización ausente / escalada de privilegios (OWASP A01:2021)
- * -----------------------------------------------------------------------------
- * Se exige estar autenticado, pero NO se comprueba el rol: `requiereRol` está
- * importado y no se usa. Cualquier usuario autenticado (incluso con rol
- * "cliente") entra al panel y puede:
- *   - crear, editar y BORRAR productos,
- *   - cambiar contraseñas,
- *   - dar de alta usuarios y cambiarles el rol (escalada de privilegios),
- *   - ejecutar comandos en el servidor.
- *
- * Corrección: `router.use(requiereRol('admin'))` sobre las rutas sensibles.
- * -----------------------------------------------------------------------------
+ * Las rutas exigen una sesión válida y el rol de administrador.
  */
-router.use(requiereSesion);
+router.use(requiereSesion, requiereRol("admin"));
 
 /** GET /api/admin/usuarios */
 router.get('/usuarios', async (req, res, next) => {
