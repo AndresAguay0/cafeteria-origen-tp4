@@ -22,6 +22,15 @@
     return n.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' });
   }
 
+  function crearElemento(etiqueta, clase, texto) {
+    var elemento = document.createElement(etiqueta);
+
+    if (clase) elemento.className = clase;
+    if (texto != null) elemento.textContent = String(texto);
+
+    return elemento;
+  }
+
   function raw(valor) {
     // FALLA: esta función NO escapa nada, devuelve el valor tal cual.
     // La forma correcta de renderizar texto del servidor es escaparHtml()
@@ -88,53 +97,103 @@
 
   function renderProductos(productos) {
     var grid = $('#productos-grid');
+    grid.replaceChildren();
 
     if (!productos || productos.length === 0) {
-      grid.innerHTML = '<p class="empty">No encontramos productos con esos filtros.</p>';
+      var vacio = document.createElement('p');
+      vacio.className = 'empty';
+      vacio.textContent = 'No encontramos productos con esos filtros.';
+      grid.appendChild(vacio);
       return;
     }
 
-    // ---------------------------------------------------------------
-    // FALLA (XSS reflejado / almacenado): el HTML se construye con
-    // innerHTML a partir de datos que vienen del servidor (nombres de
-    // producto y texto de la búsqueda). Un "<script>" en el buscador o
-    // en el nombre de un producto se ejecuta en el navegador.
-    //
-    // Corrección: usar textContent, o escapar los valores antes de
-    // interpolarlos (ver la función escaparHtml de arriba).
-    // ---------------------------------------------------------------
-    grid.innerHTML = productos.map(function (p) {
+    productos.forEach(function (p) {
       window.__productos[p.id] = p;
-      var tags = '<span class="tag">' + raw(p.tipo) + '</span>';
-      if (p.variedad) tags += '<span class="tag tag-origen">' + raw(p.variedad) + '</span>';
-      if (p.tamano) tags += '<span class="tag">' + raw(p.tamano) + '</span>';
 
-      return '' +
-        '<article class="product-card">' +
-        '  <div class="product-top">' +
-        '    <h3 class="product-name">' + raw(p.nombre) + '</h3>' +
-        '    <span class="product-price">' + money(p.precio) + '</span>' +
-        '  </div>' +
-        '  <div class="product-tags">' + tags + '</div>' +
-        '  <p class="product-desc">' + raw(p.descripcion) + '</p>' +
-        '  <button class="btn btn-ghost btn-agregar" data-id="' + raw(p.id) + '">Agregar</button>' +
-        '</article>';
-    }).join('');
+      var tarjeta = document.createElement('article');
+      tarjeta.className = 'product-card';
+
+      var superior = document.createElement('div');
+      superior.className = 'product-top';
+
+      var nombre = document.createElement('h3');
+      nombre.className = 'product-name';
+      nombre.textContent = p.nombre;
+
+      var precio = document.createElement('span');
+      precio.className = 'product-price';
+      precio.textContent = money(p.precio);
+
+      superior.appendChild(nombre);
+      superior.appendChild(precio);
+      tarjeta.appendChild(superior);
+
+      var etiquetas = document.createElement('div');
+      etiquetas.className = 'product-tags';
+
+      function agregarEtiqueta(valor, clase) {
+        var etiqueta = document.createElement('span');
+        etiqueta.className = clase;
+        etiqueta.textContent = valor;
+        etiquetas.appendChild(etiqueta);
+      }
+
+      agregarEtiqueta(p.tipo, 'tag');
+
+      if (p.variedad) {
+        agregarEtiqueta(p.variedad, 'tag tag-origen');
+      }
+
+      if (p.tamano) {
+        agregarEtiqueta(p.tamano, 'tag');
+      }
+
+      tarjeta.appendChild(etiquetas);
+
+      var descripcion = document.createElement('p');
+      descripcion.className = 'product-desc';
+      descripcion.textContent = p.descripcion;
+      tarjeta.appendChild(descripcion);
+
+      var boton = document.createElement('button');
+      boton.className = 'btn btn-ghost btn-agregar';
+      boton.textContent = 'Agregar';
+      boton.setAttribute('data-id', String(p.id));
+
+      tarjeta.appendChild(boton);
+      grid.appendChild(tarjeta);
+    });
   }
 
   function renderResultado(filtros, total) {
     var el = $('#resultado-busqueda');
+    el.replaceChildren();
 
-    // FALLA (XSS reflejado): se interpola el texto buscado con innerHTML.
     if (filtros && filtros.q) {
-      el.innerHTML = 'Resultados para <strong>' + filtros.q + '</strong> — ' + total + ' producto(s)';
+      el.appendChild(document.createTextNode('Resultados para '));
+
+      var busqueda = document.createElement('strong');
+      busqueda.textContent = filtros.q;
+      el.appendChild(busqueda);
+
+      el.appendChild(
+        document.createTextNode(' — ' + total + ' producto(s)')
+      );
     } else {
       el.textContent = total + ' producto(s) en el menú';
     }
   }
 
   function renderErrorProductos(mensaje) {
-    $('#productos-grid').innerHTML = '<p class="empty">No se pudo cargar el menú: ' + (mensaje || 'error desconocido') + '</p>';
+    var grid = $('#productos-grid');
+    grid.replaceChildren();
+
+    var error = document.createElement('p');
+    error.className = 'empty';
+    error.textContent =
+      'No se pudo cargar el menú: ' + (mensaje || 'error desconocido');
+
+    grid.appendChild(error);
   }
 
   /* --------------------------------------------------------------- carrito */
@@ -177,38 +236,57 @@
     var lista = $('#resumen-carrito');
     var total = 0;
 
+    cont.replaceChildren();
+    lista.replaceChildren();
+
     if (estado.carrito.length === 0) {
-      cont.innerHTML = '<p class="empty">El carrito está vacío.</p>';
-      lista.innerHTML = '';
+      cont.appendChild(crearElemento('p', 'empty', 'El carrito está vacío.'));
       $('#resumen-total').textContent = money(0);
       return;
     }
 
-    cont.innerHTML = estado.carrito.map(function (item, i) {
+    // FALLA 7: crear elementos seguros sin usar innerHTML.
+    estado.carrito.forEach(function (item, i) {
       var subtotal = item.precio * item.cantidad;
       total += subtotal;
-      return '' +
-        '<div class="cart-item">' +
-        '  <div>' +
-        '    <div class="cart-item-name">' + raw(item.nombre) + '</div>' +
-        '    <div class="cart-item-meta">' + money(item.precio) + ' c/u</div>' +
-        '  </div>' +
-        '  <div class="qty-control">' +
-        '    <button type="button" data-acc="menos" data-i="' + i + '">&minus;</button>' +
-        '    <span>' + item.cantidad + '</span>' +
-        '    <button type="button" data-acc="mas" data-i="' + i + '">+</button>' +
-        '  </div>' +
-        '  <div>' +
-        '    <div class="cart-item-price">' + money(subtotal) + '</div>' +
-        '    <button type="button" class="link-danger" data-acc="quitar" data-i="' + i + '">Quitar</button>' +
-        '  </div>' +
-        '</div>';
-    }).join('');
 
-    lista.innerHTML = estado.carrito.map(function (item) {
-      return '<li><span>' + raw(item.nombre) + ' × ' + item.cantidad + '</span><span>' +
-        money(item.precio * item.cantidad) + '</span></li>';
-    }).join('');
+      var fila = crearElemento('div', 'cart-item');
+      var info = crearElemento('div');
+
+      info.appendChild(crearElemento('div', 'cart-item-name', item.nombre));
+      info.appendChild(crearElemento('div', 'cart-item-meta', money(item.precio) + ' c/u'));
+      fila.appendChild(info);
+
+      var controles = crearElemento('div', 'qty-control');
+
+      function boton(texto, accion) {
+        var b = crearElemento('button', '', texto);
+        b.type = 'button';
+        b.dataset.acc = accion;
+        b.dataset.i = String(i);
+        return b;
+      }
+
+      controles.appendChild(boton('−', 'menos'));
+      controles.appendChild(crearElemento('span', '', item.cantidad));
+      controles.appendChild(boton('+', 'mas'));
+      fila.appendChild(controles);
+
+      var acciones = crearElemento('div');
+      acciones.appendChild(crearElemento('div', 'cart-item-price', money(subtotal)));
+
+      var quitar = boton('Quitar', 'quitar');
+      quitar.className = 'link-danger';
+      acciones.appendChild(quitar);
+
+      fila.appendChild(acciones);
+      cont.appendChild(fila);
+
+      var li = crearElemento('li');
+      li.appendChild(crearElemento('span', '', item.nombre + ' × ' + item.cantidad));
+      li.appendChild(crearElemento('span', '', money(subtotal)));
+      lista.appendChild(li);
+    });
 
     $('#resumen-total').textContent = money(total);
   }
@@ -230,7 +308,7 @@
       if (!resp.ok) {
         // FALLA (XSS reflejado): el mensaje del servidor se pinta con innerHTML.
         feedback.className = 'form-feedback is-error';
-        feedback.innerHTML = 'No pudimos enviar el pedido: ' + (resp.data.error || 'error desconocido');
+        feedback.textContent = 'No pudimos enviar el pedido: ' + (resp.data.error || 'error desconocido');
         return;
       }
       feedback.className = 'form-feedback is-ok';
@@ -250,24 +328,46 @@
   function cargarReseñas() {
     return api('/comentarios').then(function (resp) {
       var cont = $('#lista-resenas');
-      if (!resp.ok || !resp.data.comentarios || resp.data.comentarios.length === 0) {
-        cont.innerHTML = '<p class="empty">Todavía no hay reseñas. ¡Sé el primero!</p>';
+      cont.replaceChildren();
+
+      if (!resp.ok || !resp.data.comentarios ||
+          resp.data.comentarios.length === 0) {
+        cont.appendChild(
+          crearElemento('p', 'empty', 'Todavía no hay reseñas. ¡Sé el primero!')
+        );
         return;
       }
-      // Se escapan el autor y la reseña antes de agregarlos al HTML.
-      cont.innerHTML = resp.data.comentarios.map(function (c) {
+
+      resp.data.comentarios.forEach(function (c) {
         var estrellas = '';
         var i;
         for (i = 0; i < Number(c.calificacion || 0); i++) estrellas += '★';
-        return '' +
-          '<article class="review">' +
-          '  <div class="review-head">' +
-          '    <span class="review-author">' + escaparHtml(c.autor) + '</span>' +
-          '    <span class="review-stars">' + estrellas + '</span>' +
-          '  </div>' +
-          '  <p class="review-text">' + escaparHtml(c.texto) + '</p>' +
-          '</article>';
-      }).join('');
+
+        var articulo = document.createElement('article');
+        articulo.className = 'review';
+
+        var encabezado = document.createElement('div');
+        encabezado.className = 'review-head';
+
+        var autor = document.createElement('span');
+        autor.className = 'review-author';
+        autor.textContent = c.autor;
+
+        var estrellasElemento = document.createElement('span');
+        estrellasElemento.className = 'review-stars';
+        estrellasElemento.textContent = estrellas;
+
+        var texto = document.createElement('p');
+        texto.className = 'review-text';
+        texto.textContent = c.texto;
+
+        encabezado.appendChild(autor);
+        encabezado.appendChild(estrellasElemento);
+        articulo.appendChild(encabezado);
+        articulo.appendChild(texto);
+
+        cont.appendChild(articulo);
+      });
     });
   }
 
@@ -284,7 +384,7 @@
     }).then(function (resp) {
       if (!resp.ok) {
         feedback.className = 'form-feedback is-error';
-        feedback.innerHTML = 'No se pudo publicar: ' + (resp.data.error || 'error desconocido');
+        feedback.textContent = 'No se pudo publicar: ' + (resp.data.error || 'error desconocido');
         return;
       }
       feedback.className = 'form-feedback is-ok';
