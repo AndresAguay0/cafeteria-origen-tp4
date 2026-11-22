@@ -58,8 +58,8 @@ export function crearSesion(req: Request, res: Response, usuario: UsuarioSesion)
     expiraEn: null,
   });
 
-  // FALLA: cookie sin httpOnly / secure / sameSite.
-  res.cookie('sid', id, { path: '/' });
+  // Protege la cookie de sesión y exige HTTPS en producción.
+  res.cookie('sid', id, { path: '/', httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production'});
 
   return id;
 }
