@@ -1,5 +1,5 @@
 import * as db from '../db';
-import type { Numerico } from '../tipos';
+import type { Numerico, Variedad } from '../tipos';
 
 export interface Facturacion {
   facturado: Numerico;
@@ -19,6 +19,13 @@ export interface VentaPorVariedad {
   unidades: Numerico;
   total: Numerico;
 }
+
+// Creé una whitelist de variedades para la verificación
+const VARIEDADES_PERMITIDAS: ReadonlySet<Variedad> = new Set([
+  "Brasil",
+  "Colombia",
+  "Etiopía",
+]);
 
 /**
  * Servicio de reportes.
