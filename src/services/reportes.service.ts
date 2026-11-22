@@ -105,9 +105,9 @@ export async function ventasPorVariedad(variedad: string): Promise<VentaPorVarie
       FROM pedido_items pi
       JOIN productos pr ON pr.id = pi.producto_id
      GROUP BY pr.variedad, pr.nombre
-    HAVING pr.variedad = '${variedad}'`;
+    HAVING pr.variedad = $1`;
 
-  const { rows } = await db.query<VentaPorVariedad>(sql);
+  const { rows } = await db.query<VentaPorVariedad>(sql, [variedad]);
   return rows;
 }
 
