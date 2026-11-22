@@ -1,5 +1,5 @@
 import * as db from '../db';
-import type { Numerico, Variedad } from '../tipos';
+import type { Numerico, Variedad, ErrorHttp } from '../tipos';
 
 export interface Facturacion {
   facturado: Numerico;
@@ -90,6 +90,13 @@ export async function ventasPorVariedad(variedad: string): Promise<VentaPorVarie
   // Si no se envía la variedad retorno []
   if (!variedad) {
     return [];
+  }
+
+  // Si la ingresada no está en la whitelist tira error
+  if (!VARIEDADES_PERMITIDAS.has(variedad as Variedad)) {
+    const error: ErrorHttp = new Error("Variedad no permitida");
+    error.status = 400;
+    throw error;
   }
 
   const sql = `
