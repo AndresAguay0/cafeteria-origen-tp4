@@ -23,15 +23,6 @@ router.get('/', (req, res) => {
   res.json({
     mensaje: 'Diagnóstico del servidor',
     version: '1.0.0',
-    entorno: process.env,
-    baseDeDatos: {
-      host: process.env.DB_HOST,
-      puerto: process.env.DB_PORT,
-      nombre: process.env.DB_NAME,
-      usuario: process.env.DB_USER,
-      // FALLA: también se filtra la contraseña.
-      password: process.env.DB_PASSWORD,
-    },
     sistema: {
       node: process.version,
       plataforma: process.platform,
