@@ -1,4 +1,5 @@
 import express from 'express';
+import { requiereSesion, requiereRol } from '../middleware/auth';
 
 const router = express.Router();
 
@@ -14,6 +15,10 @@ const router = express.Router();
  * En un entorno real estos endpoints quedan detrás de autenticación y no
  * deberían existir en producción.
  */
+
+// Hago que el router use los middlewares de sesion y rol para restringir el acceso
+router.use(requiereSesion, requiereRol("admin"));
+
 router.get('/', (req, res) => {
   res.json({
     mensaje: 'Diagnóstico del servidor',
