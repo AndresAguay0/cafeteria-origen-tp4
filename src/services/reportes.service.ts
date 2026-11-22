@@ -86,6 +86,12 @@ export async function ventasPorVariedad(variedad: string): Promise<VentaPorVarie
   // El HAVING está al final a propósito: es donde un payload UNION clásico
   // ("Brasil' UNION SELECT username, password, 1, 1 FROM usuarios--") cierra la
   // consulta original y agrega la segunda, que lee otra tabla.
+
+  // Si no se envía la variedad retorno []
+  if (!variedad) {
+    return [];
+  }
+
   const sql = `
     SELECT pr.variedad, pr.nombre, SUM(pi.cantidad) AS unidades,
            SUM(pi.cantidad * pi.precio_unitario) AS total
