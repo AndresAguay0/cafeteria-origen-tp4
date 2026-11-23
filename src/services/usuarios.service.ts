@@ -1,5 +1,8 @@
 import * as db from "../db";
 import type { Usuario } from "../tipos";
+import bcrypt from "bcryptjs";
+
+const SALT_ROUNDS = 10;
 
 /**
  * Servicio de usuarios.
@@ -43,9 +46,17 @@ export async function autenticar(
   username: string,
   password: string,
 ): Promise<Usuario | null> {
-  const sql = `SELECT * FROM usuarios WHERE username = $1 AND password = $2`;
-  const { rows } = await db.query<Usuario>(sql, [username, password]);
-  return rows[0] || null;
+  const usuario = await buscarPorUsername(username);
+  if (!usuario || !usuario.password) {
+    return null;
+  }
+
+  const coincide = await bcrypt.compare(password, usuario.password);
+  if (!coincide) {
+    return null;
+  }
+
+  return usuario;
 }
 
 /** Lista todos los usuarios (para el panel de administración). */
