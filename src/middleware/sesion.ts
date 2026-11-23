@@ -28,6 +28,7 @@ import type { Sesion, UsuarioSesion } from '../tipos';
 
 export const sesiones = new Map<string, Sesion>();
 let contadorSesiones = 0;
+const DURACION_SESION_MS = 30 * 60 * 1000;
 
 /** Lee las cookies de la petición (parser mínimo, sin dependencias). */
 export function leerCookies(req: Request): Record<string, string> {
@@ -55,7 +56,7 @@ export function crearSesion(req: Request, res: Response, usuario: UsuarioSesion)
   sesiones.set(id, {
     usuario,
     creadaEn: Date.now(),
-    expiraEn: null,
+    expiraEn: Date.now() + DURACION_SESION_MS,
   });
 
   // Protege la cookie de sesión y exige HTTPS en producción.
@@ -68,8 +69,19 @@ export function crearSesion(req: Request, res: Response, usuario: UsuarioSesion)
 export function obtenerSesion(req: Request): Sesion | null {
   const cookies = leerCookies(req);
   const id = cookies.sid;
+
   if (!id) return null;
-  return sesiones.get(id) || null;
+
+  const sesion = sesiones.get(id);
+
+  if (!sesion) return null;
+
+  if (sesion.expiraEn !== null && Date.now() >= sesion.expiraEn) {
+    sesiones.delete(id);
+    return null;
+  }
+
+  return sesion;
 }
 
 /** Cierra la sesión en el servidor (debería llamarse en el logout). */
