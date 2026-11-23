@@ -103,9 +103,10 @@ export async function cambiarPassword(
   id: number,
   nuevaPassword: string,
 ): Promise<Usuario | null> {
+  const hash = await bcrypt.hash(nuevaPassword, SALT_ROUNDS);
   const { rows } = await db.query<Usuario>(
-    "UPDATE usuarios SET password = $1 WHERE id = $2 RETURNING *",
-    [nuevaPassword, id],
+    'UPDATE usuarios SET password = $1 WHERE id = $2 RETURNING *',
+    [hash, id],
   );
   return rows[0] || null;
 }
