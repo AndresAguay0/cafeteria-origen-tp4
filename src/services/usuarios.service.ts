@@ -1,5 +1,8 @@
 import * as db from "../db";
 import type { Usuario } from "../tipos";
+import bcrypt from "bcryptjs";
+
+const SALT_ROUNDS = 10;
 
 /**
  * Servicio de usuarios.
@@ -43,9 +46,17 @@ export async function autenticar(
   username: string,
   password: string,
 ): Promise<Usuario | null> {
-  const sql = `SELECT * FROM usuarios WHERE username = $1 AND password = $2`;
-  const { rows } = await db.query<Usuario>(sql, [username, password]);
-  return rows[0] || null;
+  const usuario = await buscarPorUsername(username);
+  if (!usuario || !usuario.password) {
+    return null;
+  }
+
+  const coincide = await bcrypt.compare(password, usuario.password);
+  if (!coincide) {
+    return null;
+  }
+
+  return usuario;
 }
 
 /** Lista todos los usuarios (para el panel de administración). */
@@ -65,10 +76,15 @@ export async function actualizar(
   id: number | string,
   cambios: Partial<Usuario>,
 ): Promise<Usuario | null> {
+  const datos: Partial<Usuario> = { ...cambios };
+  if (datos.password !== undefined) {
+    datos.password = await bcrypt.hash(datos.password, SALT_ROUNDS);
+  }
+
   const campos: string[] = [];
   const valores: unknown[] = [];
   let i = 1;
-  for (const [campo, valor] of Object.entries(cambios)) {
+  for (const [campo, valor] of Object.entries(datos)) {
     campos.push(`${campo} = $${i}`);
     valores.push(valor);
     i += 1;
@@ -76,7 +92,7 @@ export async function actualizar(
   if (campos.length === 0) return null;
   valores.push(id);
   const { rows } = await db.query<Usuario>(
-    `UPDATE usuarios SET ${campos.join(", ")} WHERE id = $${i} RETURNING *`,
+    `UPDATE usuarios SET ${campos.join(', ')} WHERE id = $${i} RETURNING *`,
     valores,
   );
   return rows[0] || null;
@@ -87,9 +103,10 @@ export async function cambiarPassword(
   id: number,
   nuevaPassword: string,
 ): Promise<Usuario | null> {
+  const hash = await bcrypt.hash(nuevaPassword, SALT_ROUNDS);
   const { rows } = await db.query<Usuario>(
-    "UPDATE usuarios SET password = $1 WHERE id = $2 RETURNING *",
-    [nuevaPassword, id],
+    'UPDATE usuarios SET password = $1 WHERE id = $2 RETURNING *',
+    [hash, id],
   );
   return rows[0] || null;
 }
