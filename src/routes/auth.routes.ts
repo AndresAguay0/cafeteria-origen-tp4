@@ -1,8 +1,19 @@
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import * as usuarios from '../services/usuarios.service';
 import { crearSesion, destruirSesion, obtenerSesion } from '../middleware/sesion';
 
 const router = express.Router();
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  message: {
+    error: 'Demasiados intentos de inicio de sesión. Intentá nuevamente en 15 minutos.',
+  },
+});
 
 /**
  * Inicio de sesión.
@@ -15,7 +26,7 @@ const router = express.Router();
  *  - Sin rate limiting ni bloqueo: fuerza bruta ilimitada.
  *  - El identificador de sesión no se regenera (fijación de sesión).
  */
-router.post('/login', async (req, res, next) => {
+router.post('/login', loginLimiter, async (req, res, next) => {
   try {
     const { username, password } = req.body || {};
 
