@@ -76,10 +76,15 @@ export async function actualizar(
   id: number | string,
   cambios: Partial<Usuario>,
 ): Promise<Usuario | null> {
+  const datos: Partial<Usuario> = { ...cambios };
+  if (datos.password !== undefined) {
+    datos.password = await bcrypt.hash(datos.password, SALT_ROUNDS);
+  }
+
   const campos: string[] = [];
   const valores: unknown[] = [];
   let i = 1;
-  for (const [campo, valor] of Object.entries(cambios)) {
+  for (const [campo, valor] of Object.entries(datos)) {
     campos.push(`${campo} = $${i}`);
     valores.push(valor);
     i += 1;
@@ -87,7 +92,7 @@ export async function actualizar(
   if (campos.length === 0) return null;
   valores.push(id);
   const { rows } = await db.query<Usuario>(
-    `UPDATE usuarios SET ${campos.join(", ")} WHERE id = $${i} RETURNING *`,
+    `UPDATE usuarios SET ${campos.join(', ')} WHERE id = $${i} RETURNING *`,
     valores,
   );
   return rows[0] || null;
