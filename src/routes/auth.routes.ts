@@ -2,6 +2,7 @@ import express from 'express';
 import rateLimit from 'express-rate-limit';
 import * as usuarios from '../services/usuarios.service';
 import { crearSesion, destruirSesion, obtenerSesion } from '../middleware/sesion';
+import { proteccionCsrf } from '../middleware/csrf';
 
 const router = express.Router();
 const loginLimiter = rateLimit({
@@ -77,7 +78,7 @@ router.post('/login', loginLimiter, async (req, res, next) => {
  * FALLA: sólo borra la cookie del navegador. La sesión sigue existiendo en el
  * servidor, así que con la cookie robada se puede seguir usando.
  */
-router.post('/logout', (req, res) => {
+router.post('/logout', proteccionCsrf, (req, res) => {
   destruirSesion(req);
   res.clearCookie('sid', { path: '/' });
   res.json({ mensaje: 'Sesión cerrada.' });
