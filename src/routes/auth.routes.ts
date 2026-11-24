@@ -2,6 +2,7 @@ import express from 'express';
 import rateLimit from 'express-rate-limit';
 import * as usuarios from '../services/usuarios.service';
 import { crearSesion, destruirSesion, obtenerSesion } from '../middleware/sesion';
+import { proteccionCsrf } from '../middleware/csrf';
 
 const router = express.Router();
 const loginLimiter = rateLimit({
@@ -77,7 +78,7 @@ router.post('/login', loginLimiter, async (req, res, next) => {
  * FALLA: sólo borra la cookie del navegador. La sesión sigue existiendo en el
  * servidor, así que con la cookie robada se puede seguir usando.
  */
-router.post('/logout', (req, res) => {
+router.post('/logout', proteccionCsrf, (req, res) => {
   destruirSesion(req);
   res.clearCookie('sid', { path: '/' });
   res.json({ mensaje: 'Sesión cerrada.' });
@@ -90,6 +91,18 @@ router.get('/yo', (req, res) => {
     return res.status(401).json({ error: 'Necesitás iniciar sesión.' });
   }
   res.json({ usuario: sesion.usuario });
+});
+
+// Ruta para leer el Token csrf de la sesion activa
+router.get('/csrf-token', (req, res) => {
+  const sesion = obtenerSesion(req);
+  if (!sesion) {
+    return res.status(401).json({ error: 'No hay sesión activa.' });
+  }
+  return res.json({
+    csrfToken: sesion.csrfToken,
+    token: sesion.csrfToken,
+  });
 });
 
 export default router;

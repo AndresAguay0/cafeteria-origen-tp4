@@ -1,7 +1,10 @@
 import express from 'express';
 import * as pedidos from '../services/pedidos.service';
+import { proteccionCsrf } from '../middleware/csrf';
 
 const router = express.Router();
+
+router.use(proteccionCsrf);
 
 /**
  * POST /api/pedidos

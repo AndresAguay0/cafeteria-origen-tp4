@@ -26,6 +26,10 @@ import type { Request, Response } from 'express';
 
 import type { Sesion, UsuarioSesion } from '../tipos';
 
+import crypto from "crypto";
+
+const csrfToken = crypto.randomBytes(32).toString("hex");
+
 export const sesiones = new Map<string, Sesion>();
 let contadorSesiones = 0;
 const DURACION_SESION_MS = 30 * 60 * 1000;
@@ -55,6 +59,7 @@ export function crearSesion(req: Request, res: Response, usuario: UsuarioSesion)
   // FALLA: la sesión nunca expira.
   sesiones.set(id, {
     usuario,
+    csrfToken,
     creadaEn: Date.now(),
     expiraEn: Date.now() + DURACION_SESION_MS,
   });

@@ -58,6 +58,7 @@ export type UsuarioSesion = Pick<Usuario, 'id' | 'username' | 'rol' | 'nombre'>;
 
 export interface Sesion {
   usuario: UsuarioSesion;
+  csrfToken: string;
   creadaEn: number;
   expiraEn: number | null;
 }
