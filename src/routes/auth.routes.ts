@@ -92,4 +92,16 @@ router.get('/yo', (req, res) => {
   res.json({ usuario: sesion.usuario });
 });
 
+// Ruta para leer el Token csrf de la sesion activa
+router.get('/csrf-token', (req, res) => {
+  const sesion = obtenerSesion(req);
+  if (!sesion) {
+    return res.status(401).json({ error: 'No hay sesión activa.' });
+  }
+  return res.json({
+    csrfToken: sesion.csrfToken,
+    token: sesion.csrfToken,
+  });
+});
+
 export default router;
