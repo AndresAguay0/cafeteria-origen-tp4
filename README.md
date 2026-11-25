@@ -1,5 +1,14 @@
 # ☕ Cafetería Origen — proyecto didáctico de Ciberseguridad
 
+### Integrantes GRUPO 6
+> - Andrés Aguayo
+> - Alesio Cragno
+> - Fabricio Maida
+> - Ailén Villalba
+> - Valentina Vitale
+
+---
+
 > Sitio web + API de una cafetería de especialidad **deliberadamente vulnerable**,
 > para el práctico de **Redes y Seguridad (Programación IV)**.
 >
