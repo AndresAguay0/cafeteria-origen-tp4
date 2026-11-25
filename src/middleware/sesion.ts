@@ -31,7 +31,6 @@ import crypto from "crypto";
 const csrfToken = crypto.randomBytes(32).toString("hex");
 
 export const sesiones = new Map<string, Sesion>();
-let contadorSesiones = 0;
 const DURACION_SESION_MS = 30 * 60 * 1000;
 
 /** Lee las cookies de la petición (parser mínimo, sin dependencias). */
@@ -50,13 +49,16 @@ export function leerCookies(req: Request): Record<string, string> {
 }
 
 /** Crea una sesión nueva para el usuario y setea la cookie. */
-export function crearSesion(req: Request, res: Response, usuario: UsuarioSesion): string {
-  contadorSesiones += 1;
+/** Crea una sesión nueva para el usuario y setea la cookie. */
+export function crearSesion(
+  req: Request,
+  res: Response,
+  usuario: UsuarioSesion
+): string {
 
-  // FALLA: identificador predecible.
-  const id = `sesion_${contadorSesiones}`;
+  // Genera un identificador aleatorio criptográficamente seguro.
+  const id = crypto.randomBytes(32).toString('hex');
 
-  // FALLA: la sesión nunca expira.
   sesiones.set(id, {
     usuario,
     csrfToken,
@@ -64,8 +66,13 @@ export function crearSesion(req: Request, res: Response, usuario: UsuarioSesion)
     expiraEn: Date.now() + DURACION_SESION_MS,
   });
 
-  // Protege la cookie de sesión y exige HTTPS en producción.
-  res.cookie('sid', id, { path: '/', httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production'});
+  // Conserva las opciones de seguridad existentes.
+  res.cookie('sid', id, {
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+  });
 
   return id;
 }
