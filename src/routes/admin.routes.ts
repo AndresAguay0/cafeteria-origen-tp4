@@ -1,7 +1,7 @@
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
-import { exec } from 'child_process';
+import { spawn } from 'child_process';
 
 import config from '../config';
 import * as catalogo from '../services/catalogo.service';
@@ -37,19 +37,64 @@ router.get('/usuarios', async (req, res, next) => {
  * cuerpo, incluido el `rol`. Un usuario con rol "cliente" puede mandarse
  * `{"rol": "admin"}` y convertirse en administrador.
  */
+/** PUT /api/admin/usuarios/:id */
 router.put('/usuarios/:id', async (req, res, next) => {
   try {
     const { username, nombre, rol, password } = req.body || {};
-    const cambios: Partial<Usuario> = {};
-    if (username !== undefined) cambios.username = username;
-    if (nombre !== undefined) cambios.nombre = nombre;
-    if (rol !== undefined) cambios.rol = rol;
-    if (password !== undefined) cambios.password = password;
 
-    const usuario = await usuarios.actualizar(req.params.id, cambios);
-    if (!usuario) {
-      return res.status(404).json({ error: 'Usuario no encontrado.' });
+    const cambios: Partial<Usuario> = {};
+
+    if (username !== undefined) {
+      cambios.username = username;
     }
+
+    if (nombre !== undefined) {
+      cambios.nombre = nombre;
+    }
+
+    if (rol !== undefined) {
+      // Comprobar el rol de quien solicita el cambio.
+      if (req.usuario?.rol !== 'admin') {
+        return res.status(403).json({
+          error: 'No tenés permisos para modificar roles.',
+        });
+      }
+
+      // Lista blanca de roles permitidos.
+      const ROLES_PERMITIDOS = [
+        'admin',
+        'barista',
+        'mozo',
+        'cliente',
+      ];
+
+      if (
+        typeof rol !== 'string' ||
+        !ROLES_PERMITIDOS.includes(rol)
+      ) {
+        return res.status(400).json({
+          error: 'El rol solicitado no es válido.',
+        });
+      }
+
+      cambios.rol = rol as Usuario['rol'];
+    }
+
+    if (password !== undefined) {
+      cambios.password = password;
+    }
+
+    const usuario = await usuarios.actualizar(
+      req.params.id,
+      cambios
+    );
+
+    if (!usuario) {
+      return res.status(404).json({
+        error: 'Usuario no encontrado.',
+      });
+    }
+
     res.json(usuario);
   } catch (err) {
     next(err);
@@ -137,17 +182,69 @@ router.post('/cambiar-contrasena', async (req, res, next) => {
  * shell.
  * -----------------------------------------------------------------------------
  */
+/**
+ * POST /api/admin/probar-conexion
+ *
+ * Ejecuta una prueba de conectividad sin utilizar un shell.
+ */
 router.post('/probar-conexion', (req, res) => {
   const { host } = req.body || {};
 
-  // FALLA: entrada de usuario concatenada en un comando de shell.
+  // Validar el tipo y formato del host.
+  if (
+    typeof host !== 'string' ||
+    host.length === 0 ||
+    host.length > 253
+  ) {
+    return res.status(400).json({
+      error: 'El servidor indicado no es válido.',
+    });
+  }
+
+  // Acepta direcciones IP o nombres de host.
+  const formatoHost =
+    /^(?:(?:\d{1,3}\.){3}\d{1,3}|[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*)$/;
+
+  if (!formatoHost.test(host)) {
+    return res.status(400).json({
+      error: 'El servidor indicado no es válido.',
+    });
+  }
+
   const comando = `ping -c 3 ${host}`;
 
-  exec(comando, (error, stdout, stderr) => {
+  // Los argumentos se pasan por separado.
+  // shell: false impide que la entrada se interprete como comandos.
+  const proceso = spawn('ping', ['-c', '3', host], {
+    shell: false,
+  });
+
+  let salida = '';
+  let errorSalida = '';
+
+  proceso.stdout.on('data', (datos: Buffer) => {
+    salida += datos.toString();
+  });
+
+  proceso.stderr.on('data', (datos: Buffer) => {
+    errorSalida += datos.toString();
+  });
+
+  proceso.on('error', () => {
+    if (!res.headersSent) {
+      res.status(500).json({
+        error: 'No se pudo ejecutar la prueba de conexión.',
+      });
+    }
+  });
+
+  proceso.on('close', () => {
+    if (res.headersSent) return;
+
     res.json({
       comando,
-      salida: stdout,
-      error: stderr || (error ? error.message : null),
+      salida,
+      error: errorSalida || null,
     });
   });
 });
