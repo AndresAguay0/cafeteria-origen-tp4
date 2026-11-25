@@ -1,7 +1,12 @@
 import * as db from '../db';
 import { calcularPrecio } from '../catalogo';
-import type { Pedido, PedidoConItems, PedidoItem, Producto } from '../tipos';
-
+import type {
+  Pedido,
+  PedidoConItems,
+  PedidoItem,
+  Producto,
+  ErrorHttp,
+} from '../tipos';
 /** Un renglón del pedido, tal como llega en el cuerpo de la petición. */
 export interface ItemPedido {
   productoId: number;
@@ -40,17 +45,86 @@ type Id = number | string;
  * Crea un pedido a partir de una lista de items { productoId, cantidad }.
  * Total = suma de calcularPrecio(producto) x cantidad
  */
-export async function crear({ mesa, cliente, items }: NuevoPedido): Promise<PedidoConItems | null> {
-  // FALLA: no se valida que items exista, sea un array, ni que cada cantidad
-  // sea un entero positivo. Los tipos de `NuevoPedido` NO alcanzan: el cuerpo
-  // de la petición llega como `any` y en ejecución puede traer cualquier cosa.
-  const filas: { productoId: number; cantidad: number; precioUnitario: number }[] = [];
+export async function crear({
+  mesa,
+  cliente,
+  items,
+}: NuevoPedido): Promise<PedidoConItems | null> {
+
+  // Genera un error HTTP 400 para las entradas inválidas.
+  const errorValidacion = (mensaje: string): ErrorHttp => {
+    const error = new Error(mensaje) as ErrorHttp;
+    error.status = 400;
+    return error;
+  };
+
+  // Validar los datos generales del pedido.
+  if (
+    typeof mesa !== 'string' ||
+    mesa.trim().length === 0 ||
+    mesa.length > 20
+  ) {
+    throw errorValidacion('La mesa no es válida.');
+  }
+
+  if (
+    typeof cliente !== 'string' ||
+    cliente.trim().length === 0 ||
+    cliente.length > 100
+  ) {
+    throw errorValidacion('El nombre del cliente no es válido.');
+  }
+
+  if (
+    !Array.isArray(items) ||
+    items.length === 0 ||
+    items.length > 20
+  ) {
+    throw errorValidacion(
+      'El pedido debe tener entre 1 y 20 productos.'
+    );
+  }
+
+  // Validar todos los items antes de consultar o modificar la base.
+  for (const item of items) {
+    if (
+      !item ||
+      !Number.isSafeInteger(item.productoId) ||
+      item.productoId <= 0
+    ) {
+      throw errorValidacion(
+        'El identificador del producto no es válido.'
+      );
+    }
+
+    if (
+      !Number.isSafeInteger(item.cantidad) ||
+      item.cantidad < 1 ||
+      item.cantidad > 100
+    ) {
+      throw errorValidacion(
+        'La cantidad debe ser un entero entre 1 y 100.'
+      );
+    }
+  }
+
+  const filas: {
+    productoId: number;
+    cantidad: number;
+    precioUnitario: number;
+  }[] = [];
 
   for (const item of items) {
-    // Si el producto no existe, buscarProducto devuelve null y `precio`
-    // revienta con un TypeError cuyo stack se filtra al cliente.
     const producto = await buscarProducto(item.productoId);
+
+    if (!producto) {
+      throw errorValidacion(
+        'El producto solicitado no existe.'
+      );
+    }
+
     const precioUnitario = calcularPrecio(producto);
+
     filas.push({
       productoId: producto.id,
       cantidad: item.cantidad,
@@ -69,23 +143,38 @@ export async function crear({ mesa, cliente, items }: NuevoPedido): Promise<Pedi
      RETURNING *`,
     [mesa, cliente, total]
   );
+
   const pedido = rows[0];
 
   for (const fila of filas) {
     await db.query(
-      `INSERT INTO pedido_items (pedido_id, producto_id, cantidad, precio_unitario)
+      `INSERT INTO pedido_items
+       (pedido_id, producto_id, cantidad, precio_unitario)
        VALUES ($1, $2, $3, $4)`,
-      [pedido.id, fila.productoId, fila.cantidad, fila.precioUnitario]
+      [
+        pedido.id,
+        fila.productoId,
+        fila.cantidad,
+        fila.precioUnitario,
+      ]
     );
   }
 
   return obtenerConItems(pedido.id);
 }
 
+
+
 /** Busca un producto por id (helper interno). */
-async function buscarProducto(productoId: number): Promise<Producto> {
-  const { rows } = await db.query<Producto>('SELECT * FROM productos WHERE id = $1', [productoId]);
-  return rows[0];
+async function buscarProducto(
+  productoId: number
+): Promise<Producto | null> {
+  const { rows } = await db.query<Producto>(
+    'SELECT * FROM productos WHERE id = $1',
+    [productoId]
+  );
+
+  return rows[0] || null;
 }
 
 /** Lista pedidos (con filtro opcional por mesa). */
