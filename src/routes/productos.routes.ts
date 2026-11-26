@@ -51,7 +51,15 @@ router.get('/variedades', async (req, res, next) => {
  */
 router.get('/:id', async (req, res, next) => {
   try {
-    const producto = await catalogo.obtener(req.params.id);
+    const id = Number(req.params.id);
+
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({
+        error: 'El ID debe ser un entero positivo.',
+      });
+    }
+
+    const producto = await catalogo.obtener(id);
     if (!producto) {
       return res
         .status(404)
