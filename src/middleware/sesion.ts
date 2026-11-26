@@ -28,8 +28,6 @@ import type { Sesion, UsuarioSesion } from '../tipos';
 
 import crypto from "crypto";
 
-const csrfToken = crypto.randomBytes(32).toString("hex");
-
 export const sesiones = new Map<string, Sesion>();
 const DURACION_SESION_MS = 30 * 60 * 1000;
 
@@ -58,7 +56,8 @@ export function crearSesion(
 
   // Genera un identificador aleatorio criptográficamente seguro.
   const id = crypto.randomBytes(32).toString('hex');
-
+  const csrfToken = crypto.randomBytes(32).toString("hex");
+  
   sesiones.set(id, {
     usuario,
     csrfToken,

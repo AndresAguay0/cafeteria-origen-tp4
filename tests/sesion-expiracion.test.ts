@@ -15,6 +15,7 @@ test('una sesión vencida se rechaza y elimina', () => {
     },
     creadaEn: Date.now() - 60 * 60 * 1000,
     expiraEn: Date.now() - 1000,
+    csrfToken: 'test-token'
   });
 
   const req = {
@@ -40,6 +41,7 @@ test('una sesión vencida no puede acceder al diagnóstico', async () => {
     },
     creadaEn: Date.now() - 60 * 60 * 1000,
     expiraEn: Date.now() - 1000,
+    csrfToken: 'test-token'
   });
 
   const res = await request(app)

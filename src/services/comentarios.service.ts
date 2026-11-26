@@ -39,11 +39,41 @@ export async function listar(): Promise<Comentario[]> {
 /** Crea un comentario. */
 export async function crear({ autor, texto, calificacion }: NuevoComentario): Promise<Comentario> {
   // FALLA: sin validación de longitud ni de rango de calificación.
+  if (
+    typeof autor !== 'string' ||
+    autor.trim().length < 2 ||
+    autor.trim().length > 40
+  ) {
+    const error = new Error('El nombre debe tener entre 2 y 40 caracteres.') as Error & { status: number };
+    error.status = 400;
+    throw error;
+  }
+
+  if (
+    typeof texto !== 'string' ||
+    texto.trim().length < 3 ||
+    texto.trim().length > 1000
+  ) {
+    const error = new Error('La reseña debe tener entre 3 y 1000 caracteres.') as Error & { status: number };
+    error.status = 400;
+    throw error;
+  }
+
+  if (
+    !Number.isInteger(calificacion) ||
+    calificacion < 1 ||
+    calificacion > 5
+  ) {
+    const error = new Error('La calificación debe ser un entero entre 1 y 5.') as Error & { status: number };
+    error.status = 400;
+    throw error;
+  }
+
   const { rows } = await db.query<Comentario>(
     `INSERT INTO comentarios (autor, texto, calificacion)
      VALUES ($1, $2, $3)
      RETURNING *`,
-    [autor, texto, calificacion]
+    [autor.trim(), texto.trim(), calificacion]
   );
   return rows[0];
 }
