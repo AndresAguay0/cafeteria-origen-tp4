@@ -1,5 +1,8 @@
-import * as db from '../db';
-import type { Usuario } from '../tipos';
+import * as db from "../db";
+import type { Usuario } from "../tipos";
+import bcrypt from "bcryptjs";
+
+const SALT_ROUNDS = 10;
 
 /**
  * Servicio de usuarios.
@@ -25,10 +28,12 @@ import type { Usuario } from '../tipos';
  */
 
 /** Busca un usuario por nombre de usuario exacto (query parametrizada). */
-export async function buscarPorUsername(username: string): Promise<Usuario | null> {
+export async function buscarPorUsername(
+  username: string,
+): Promise<Usuario | null> {
   const { rows } = await db.query<Usuario>(
-    'SELECT * FROM usuarios WHERE username = $1',
-    [username]
+    "SELECT * FROM usuarios WHERE username = $1",
+    [username],
   );
   return rows[0] || null;
 }
@@ -37,16 +42,28 @@ export async function buscarPorUsername(username: string): Promise<Usuario | nul
  * Autentica a un usuario comparando usuario y contraseña.
  * Devuelve el usuario o null.
  */
-export async function autenticar(username: string, password: string): Promise<Usuario | null> {
-  // FALLA: inyección SQL — la entrada del usuario se concatena en la consulta.
-  const sql = `SELECT * FROM usuarios WHERE username = '${username}' AND password = '${password}'`;
-  const { rows } = await db.query<Usuario>(sql);
-  return rows[0] || null;
+export async function autenticar(
+  username: string,
+  password: string,
+): Promise<Usuario | null> {
+  const usuario = await buscarPorUsername(username);
+  if (!usuario || !usuario.password) {
+    return null;
+  }
+
+  const coincide = await bcrypt.compare(password, usuario.password);
+  if (!coincide) {
+    return null;
+  }
+
+  return usuario;
 }
 
 /** Lista todos los usuarios (para el panel de administración). */
 export async function listar(): Promise<Usuario[]> {
-  const { rows } = await db.query<Usuario>('SELECT * FROM usuarios ORDER BY id');
+  const { rows } = await db.query<Usuario>(
+    "SELECT * FROM usuarios ORDER BY id",
+  );
   return rows;
 }
 
@@ -55,11 +72,19 @@ export async function listar(): Promise<Usuario[]> {
  * FALLA — Asignación masiva / escalada de privilegios: se actualiza el rol
  * sin verificar que quien llama tenga permiso para hacerlo.
  */
-export async function actualizar(id: number | string, cambios: Partial<Usuario>): Promise<Usuario | null> {
+export async function actualizar(
+  id: number | string,
+  cambios: Partial<Usuario>,
+): Promise<Usuario | null> {
+  const datos: Partial<Usuario> = { ...cambios };
+  if (datos.password !== undefined) {
+    datos.password = await bcrypt.hash(datos.password, SALT_ROUNDS);
+  }
+
   const campos: string[] = [];
   const valores: unknown[] = [];
   let i = 1;
-  for (const [campo, valor] of Object.entries(cambios)) {
+  for (const [campo, valor] of Object.entries(datos)) {
     campos.push(`${campo} = $${i}`);
     valores.push(valor);
     i += 1;
@@ -68,16 +93,20 @@ export async function actualizar(id: number | string, cambios: Partial<Usuario>)
   valores.push(id);
   const { rows } = await db.query<Usuario>(
     `UPDATE usuarios SET ${campos.join(', ')} WHERE id = $${i} RETURNING *`,
-    valores
+    valores,
   );
   return rows[0] || null;
 }
 
 /** Cambia la contraseña de un usuario (se guarda en texto plano). */
-export async function cambiarPassword(id: number, nuevaPassword: string): Promise<Usuario | null> {
+export async function cambiarPassword(
+  id: number,
+  nuevaPassword: string,
+): Promise<Usuario | null> {
+  const hash = await bcrypt.hash(nuevaPassword, SALT_ROUNDS);
   const { rows } = await db.query<Usuario>(
     'UPDATE usuarios SET password = $1 WHERE id = $2 RETURNING *',
-    [nuevaPassword, id]
+    [hash, id],
   );
   return rows[0] || null;
 }

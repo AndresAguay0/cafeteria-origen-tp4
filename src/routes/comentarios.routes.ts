@@ -1,7 +1,10 @@
 import express from 'express';
 import * as comentarios from '../services/comentarios.service';
+import { proteccionCsrf } from '../middleware/csrf';
 
 const router = express.Router();
+
+router.use(proteccionCsrf);
 
 /**
  * GET /api/comentarios — reseñas públicas de la cafetería.

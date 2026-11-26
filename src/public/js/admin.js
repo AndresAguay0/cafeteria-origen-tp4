@@ -17,13 +17,17 @@
 
   function raw(valor) {
     // FALLA: no escapa nada. Usar escaparHtml() / textContent.
-    return String(valor == null ? '' : valor);
+    return escaparHtml(valor);
   }
 
   function escaparHtml(texto) {
-    var div = document.createElement('div');
-    div.textContent = texto == null ? '' : String(texto);
-    return div.innerHTML;
+    return String(texto == null ? '' : texto)
+    // esto permite escapar caracteres HTML sin usar innerHTML
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   function api(url, opciones) {
@@ -60,7 +64,7 @@
 
   function feedback(el, mensaje, ok) {
     el.className = 'form-feedback ' + (ok ? 'is-ok' : 'is-error');
-    el.innerHTML = mensaje;
+    el.textContent = mensaje;
   }
 
   /* ------------------------------------------------------------------ login */
@@ -89,15 +93,15 @@
       usuario = null;
       $('#vista-login').hidden = false;
       $('#vista-panel').hidden = true;
-      $('#admin-user').innerHTML = '';
+      $('#admin-user').textContent = '';
     });
   }
 
   function mostrarPanel() {
     $('#vista-login').hidden = true;
     $('#vista-panel').hidden = false;
-    $('#admin-user').innerHTML =
-      'Sesión de <strong>' + raw(usuario.nombre) + '</strong> · rol: <strong>' + raw(usuario.rol) + '</strong>';
+    $('#admin-user').textContent =
+      'Sesión de ' + usuario.nombre + ' · rol: ' + usuario.rol;
     $('#panel-bienvenida').textContent = 'Hola, ' + usuario.nombre;
     cargarTodo();
   }
@@ -121,7 +125,7 @@
             { label: 'Pedidos registrados', value: f.data.pedidos },
             {
               label: 'Producto más vendido',
-              value: mas ? raw(mas.nombre) : '—',
+              value: mas ? mas.nombre : '—',
             },
             {
               label: 'Unidades por tipo',
@@ -131,48 +135,114 @@
             },
           ];
 
-          $('#kpis').innerHTML = kpis.map(function (k) {
-            return '<div class="kpi"><div class="kpi-label">' + raw(k.label) + '</div>' +
-              '<div class="kpi-value">' + raw(k.value) + '</div></div>';
-          }).join('');
+          var contenedor = $('#kpis');
+          contenedor.replaceChildren();
+
+          kpis.forEach(function (k) {
+            var tarjeta = document.createElement('div');
+            tarjeta.className = 'kpi';
+
+            var etiqueta = document.createElement('div');
+            etiqueta.className = 'kpi-label';
+            etiqueta.textContent = k.label;
+
+            var valor = document.createElement('div');
+            valor.className = 'kpi-value';
+            valor.textContent = k.value;
+
+            tarjeta.appendChild(etiqueta);
+            tarjeta.appendChild(valor);
+            contenedor.appendChild(tarjeta);
+          });
         });
       });
     });
   }
 
   /* --------------------------------------------------------------- pedidos */
-  function tablaPedidos(filas, conAcciones) {
-    if (!filas || filas.length === 0) return '<p class="empty">No hay pedidos.</p>';
 
-    var html = '<thead><tr><th>#</th><th>Mesa</th><th>Cliente</th><th>Estado</th>' +
-      '<th class="num">Total</th><th>Fecha</th>' + (conAcciones ? '<th>Acciones</th>' : '') + '</tr></thead><tbody>';
+  function tablaPedidos(filas, conAcciones) {
+    var fragmento = document.createDocumentFragment();
+
+    if (!filas || filas.length === 0) {
+      var vacio = document.createElement('p');
+      vacio.className = 'empty';
+      vacio.textContent = 'No hay pedidos.';
+      fragmento.appendChild(vacio);
+      return fragmento;
+    }
+
+    var thead = document.createElement('thead');
+    var encabezado = document.createElement('tr');
+
+    ['#', 'Mesa', 'Cliente', 'Estado', 'Total', 'Fecha']
+      .concat(conAcciones ? ['Acciones'] : [])
+      .forEach(function (titulo) {
+        var th = document.createElement('th');
+        th.textContent = titulo;
+        if (titulo === 'Total') th.className = 'num';
+        encabezado.appendChild(th);
+      });
+
+    thead.appendChild(encabezado);
+    fragmento.appendChild(thead);
+
+    var tbody = document.createElement('tbody');
 
     filas.forEach(function (p) {
-      html += '<tr>' +
-        '<td>' + raw(p.id) + '</td>' +
-        '<td>' + raw(p.mesa) + '</td>' +
-        '<td>' + raw(p.cliente) + '</td>' +
-        '<td><span class="badge badge-' + raw(p.estado) + '">' + raw(p.estado) + '</span></td>' +
-        '<td class="num">' + money(p.total) + '</td>' +
-        '<td>' + new Date(p.creado_en).toLocaleString('es-AR') + '</td>' +
-        (conAcciones
-          ? '<td><select data-pedido="' + raw(p.id) + '" class="sel-estado">' +
-            ['abierto', 'preparando', 'listo', 'entregado'].map(function (e) {
-              return '<option value="' + e + '"' + (e === p.estado ? ' selected' : '') + '>' + e + '</option>';
-            }).join('') +
-            '</select></td>'
-          : '') +
-        '</tr>';
+      var tr = document.createElement('tr');
+
+      function agregarCelda(valor, clase) {
+        var td = document.createElement('td');
+        td.textContent = valor == null ? '' : String(valor);
+        if (clase) td.className = clase;
+        tr.appendChild(td);
+        return td;
+      }
+
+      agregarCelda(p.id);
+      agregarCelda(p.mesa);
+      agregarCelda(p.cliente);
+
+      var tdEstado = agregarCelda('');
+      var badge = document.createElement('span');
+      badge.className = 'badge';
+      badge.classList.add('badge-' + String(p.estado));
+      badge.textContent = p.estado;
+      tdEstado.appendChild(badge);
+
+      agregarCelda(money(p.total), 'num');
+      agregarCelda(new Date(p.creado_en).toLocaleString('es-AR'));
+
+      if (conAcciones) {
+        var tdAcciones = agregarCelda('');
+        var select = document.createElement('select');
+        select.className = 'sel-estado';
+        select.setAttribute('data-pedido', String(p.id));
+
+        ['abierto', 'preparando', 'listo', 'entregado'].forEach(function (estado) {
+          var opcion = document.createElement('option');
+          opcion.value = estado;
+          opcion.textContent = estado;
+          opcion.selected = estado === p.estado;
+          select.appendChild(opcion);
+        });
+
+        tdAcciones.appendChild(select);
+      }
+
+      tbody.appendChild(tr);
     });
 
-    return html + '</tbody>';
+    fragmento.appendChild(tbody);
+    return fragmento;
   }
 
   function cargarPedidos() {
     api('/pedidos').then(function (resp) {
       var pedidos = resp.data.pedidos || [];
-      $('#tabla-pedidos').innerHTML = tablaPedidos(pedidos, true);
-      $('#tabla-ultimos').innerHTML = tablaPedidos(pedidos.slice(0, 5), false);
+        $('#tabla-pedidos').replaceChildren(tablaPedidos(pedidos, true));
+        $('#tabla-ultimos').replaceChildren(tablaPedidos(pedidos.slice(0, 5), false));
     });
   }
 
@@ -189,28 +259,78 @@
   }
 
   /* ------------------------------------------------------------- productos */
-  function cargarProductos() {
-    api('/productos').then(function (resp) {
-      var productos = resp.data.productos || [];
-      productosCache = {};
-      var html = '<thead><tr><th>#</th><th>Nombre</th><th>Tipo</th><th>Origen</th>' +
-        '<th class="num">Precio</th><th>Acciones</th></tr></thead><tbody>';
+// reemplacé innerHTML por createElement y textContent
+// para evitar la ejecución de código HTML o JavaScript malicioso.
+// mantuve la estructura de la tabla y el botón Borrar.
+function cargarProductos() {
+  api('/productos').then(function (resp) {
+    var productos = resp.data.productos || [];
+    productosCache = {};
 
-      productos.forEach(function (p) {
-        productosCache[p.id] = p;
-        html += '<tr>' +
-          '<td>' + raw(p.id) + '</td>' +
-          '<td>' + raw(p.nombre) + '</td>' +
-          '<td>' + raw(p.tipo) + '</td>' +
-          '<td>' + raw(p.variedad || '—') + '</td>' +
-          '<td class="num">' + money(p.precio) + '</td>' +
-          '<td><button class="link-danger" data-borrar="' + raw(p.id) + '">Borrar</button></td>' +
-          '</tr>';
-      });
+    var tabla = $('#tabla-productos');
+    tabla.replaceChildren();
 
-      $('#tabla-productos').innerHTML = html + '</tbody>';
+    // Encabezado de la tabla
+    var thead = document.createElement('thead');
+    var filaEncabezado = document.createElement('tr');
+
+    ['#', 'Nombre', 'Tipo', 'Origen', 'Precio', 'Acciones'].forEach(function (titulo) {
+      var th = document.createElement('th');
+      th.textContent = titulo;
+
+      if (titulo === 'Precio') {
+        th.className = 'num';
+      }
+
+      filaEncabezado.appendChild(th);
     });
-  }
+
+    thead.appendChild(filaEncabezado);
+    tabla.appendChild(thead);
+
+    // Cuerpo de la tabla
+    var tbody = document.createElement('tbody');
+
+    productos.forEach(function (p) {
+      productosCache[p.id] = p;
+
+      var fila = document.createElement('tr');
+
+      function agregarCelda(valor, clase) {
+        var td = document.createElement('td');
+        td.textContent = valor == null ? '' : String(valor);
+
+        if (clase) {
+          td.className = clase;
+        }
+
+        fila.appendChild(td);
+      }
+
+      agregarCelda(p.id);
+      agregarCelda(p.nombre);
+      agregarCelda(p.tipo);
+      agregarCelda(p.variedad || '—');
+      agregarCelda(money(p.precio), 'num');
+
+      // Botón Borrar
+      var tdAcciones = document.createElement('td');
+      var boton = document.createElement('button');
+
+      boton.className = 'link-danger';
+      boton.textContent = 'Borrar';
+      boton.setAttribute('data-borrar', String(p.id));
+
+      tdAcciones.appendChild(boton);
+      fila.appendChild(tdAcciones);
+
+      tbody.appendChild(fila);
+    });
+
+    tabla.appendChild(tbody);
+  });
+}
+
 
   function guardarProducto(evento) {
     evento.preventDefault();
@@ -299,12 +419,28 @@
             { label: 'Facturación', value: money(f.data.facturado) },
             { label: 'Pedidos', value: f.data.pedidos },
             { label: 'Ticket promedio', value: money(t.data.promedio) },
-            { label: 'Más vendido', value: mas ? raw(mas.nombre) + ' (' + raw(mas.unidades) + ')' : '—' },
+            { label: 'Más vendido', value: mas ? mas.nombre + ' (' + mas.unidades + ')' : '—' },
           ];
-          $('#kpis-reportes').innerHTML = kpis.map(function (k) {
-            return '<div class="kpi"><div class="kpi-label">' + raw(k.label) + '</div>' +
-              '<div class="kpi-value">' + raw(k.value) + '</div></div>';
-          }).join('');
+         
+          var contenedor = $('#kpis-reportes');
+          contenedor.replaceChildren();
+
+          kpis.forEach(function (k) {
+            var tarjeta = document.createElement('div');
+            tarjeta.className = 'kpi';
+
+            var etiqueta = document.createElement('div');
+            etiqueta.className = 'kpi-label';
+            etiqueta.textContent = k.label;
+
+            var valor = document.createElement('div');
+            valor.className = 'kpi-value';
+            valor.textContent = k.value;
+
+            tarjeta.appendChild(etiqueta);
+            tarjeta.appendChild(valor);
+            contenedor.appendChild(tarjeta);
+          });
         });
       });
     });
@@ -315,44 +451,131 @@
     var variedad = $('#reporte-variedad').value;
 
     api('/reportes/ventas-por-variedad?variedad=' + encodeURIComponent(variedad)).then(function (resp) {
+      var tabla = $('#tabla-ventas');
+
       if (!resp.ok) {
         feedback(caja, 'Error: ' + (resp.data.error || 'desconocido'), false);
-        $('#tabla-ventas').innerHTML = '';
+        tabla.replaceChildren();
         return;
       }
+
       var ventas = resp.data.ventas || [];
-      var html = '<thead><tr><th>Origen</th><th>Producto</th><th class="num">Unidades</th>' +
-        '<th class="num">Total</th></tr></thead><tbody>';
-      ventas.forEach(function (v) {
-        html += '<tr><td>' + raw(v.variedad) + '</td><td>' + raw(v.nombre) + '</td>' +
-          '<td class="num">' + raw(v.unidades) + '</td><td class="num">' + money(v.total) + '</td></tr>';
+      tabla.replaceChildren();
+
+      var thead = document.createElement('thead');
+      var encabezado = document.createElement('tr');
+
+      ['Origen', 'Producto', 'Unidades', 'Total'].forEach(function (titulo) {
+        var th = document.createElement('th');
+        th.textContent = titulo;
+
+        if (titulo === 'Unidades' || titulo === 'Total') {
+          th.className = 'num';
+        }
+
+        encabezado.appendChild(th);
       });
-      $('#tabla-ventas').innerHTML = html + '</tbody>';
+
+      thead.appendChild(encabezado);
+      tabla.appendChild(thead);
+
+      var tbody = document.createElement('tbody');
+
+      ventas.forEach(function (v) {
+        var fila = document.createElement('tr');
+
+        function agregarCelda(valor, clase) {
+          var td = document.createElement('td');
+          td.textContent = valor == null ? '' : String(valor);
+
+          if (clase) td.className = clase;
+
+          fila.appendChild(td);
+        }
+
+        agregarCelda(v.variedad);
+        agregarCelda(v.nombre);
+        agregarCelda(v.unidades, 'num');
+        agregarCelda(money(v.total), 'num');
+
+        tbody.appendChild(fila);
+      });
+
+      tabla.appendChild(tbody);
       feedback(caja, 'Consulta realizada.', true);
     });
   }
 
   /* -------------------------------------------------------------- usuarios */
+
   function cargarUsuarios() {
     api('/admin/usuarios').then(function (resp) {
       var usuarios = resp.data.usuarios || [];
-      var html = '<thead><tr><th>#</th><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Acciones</th></tr></thead><tbody>';
-      usuarios.forEach(function (u) {
-        html += '<tr>' +
-          '<td>' + raw(u.id) + '</td>' +
-          '<td>' + raw(u.username) + '</td>' +
-          '<td>' + raw(u.nombre) + '</td>' +
-          '<td><span class="badge' + (u.rol === 'admin' ? ' badge-admin' : '') + '">' + raw(u.rol) + '</span></td>' +
-          '<td><select data-usuario="' + raw(u.id) + '" class="sel-rol">' +
-            ['cliente', 'mozo', 'barista', 'admin'].map(function (r) {
-              return '<option value="' + r + '"' + (r === u.rol ? ' selected' : '') + '>' + r + '</option>';
-            }).join('') +
-            '</select></td>' +
-          '</tr>';
+      var tabla = $('#tabla-usuarios');
+
+      tabla.replaceChildren();
+
+      var thead = document.createElement('thead');
+      var encabezado = document.createElement('tr');
+
+      ['#', 'Usuario', 'Nombre', 'Rol', 'Acciones'].forEach(function (titulo) {
+        var th = document.createElement('th');
+        th.textContent = titulo;
+        encabezado.appendChild(th);
       });
-      $('#tabla-usuarios').innerHTML = html + '</tbody>';
+
+      thead.appendChild(encabezado);
+      tabla.appendChild(thead);
+
+      var tbody = document.createElement('tbody');
+
+      usuarios.forEach(function (u) {
+        var fila = document.createElement('tr');
+
+        function agregarCelda(valor) {
+          var td = document.createElement('td');
+          td.textContent = valor == null ? '' : String(valor);
+          fila.appendChild(td);
+          return td;
+        }
+
+        agregarCelda(u.id);
+        agregarCelda(u.username);
+        agregarCelda(u.nombre);
+
+        var tdRol = agregarCelda('');
+        var badge = document.createElement('span');
+        badge.className = 'badge';
+
+        if (u.rol === 'admin') {
+          badge.classList.add('badge-admin');
+        }
+
+        badge.textContent = u.rol;
+        tdRol.appendChild(badge);
+
+        var tdAcciones = agregarCelda('');
+        var select = document.createElement('select');
+
+        select.className = 'sel-rol';
+        select.setAttribute('data-usuario', String(u.id));
+
+        ['cliente', 'mozo', 'barista', 'admin'].forEach(function (rol) {
+          var opcion = document.createElement('option');
+          opcion.value = rol;
+          opcion.textContent = rol;
+          opcion.selected = rol === u.rol;
+          select.appendChild(opcion);
+        });
+
+        tdAcciones.appendChild(select);
+        tbody.appendChild(fila);
+      });
+
+      tabla.appendChild(tbody);
     });
   }
+
 
   function cambiarRol(evento) {
     var select = evento.target.closest('.sel-rol');
@@ -424,7 +647,7 @@
     var params = new URLSearchParams(window.location.search);
     var objetivo = params.get('vista');
     if (objetivo) {
-      $('#panel-bienvenida').innerHTML = 'Panel ' + objetivo;
+      $('#panel-bienvenida').textContent = 'Panel ' + objetivo;
     }
 
     $('#form-login').addEventListener('submit', iniciarSesion);

@@ -26,8 +26,10 @@ import type { Request, Response } from 'express';
 
 import type { Sesion, UsuarioSesion } from '../tipos';
 
+import crypto from "crypto";
+
 export const sesiones = new Map<string, Sesion>();
-let contadorSesiones = 0;
+const DURACION_SESION_MS = 30 * 60 * 1000;
 
 /** Lee las cookies de la petición (parser mínimo, sin dependencias). */
 export function leerCookies(req: Request): Record<string, string> {
@@ -45,21 +47,31 @@ export function leerCookies(req: Request): Record<string, string> {
 }
 
 /** Crea una sesión nueva para el usuario y setea la cookie. */
-export function crearSesion(req: Request, res: Response, usuario: UsuarioSesion): string {
-  contadorSesiones += 1;
+/** Crea una sesión nueva para el usuario y setea la cookie. */
+export function crearSesion(
+  req: Request,
+  res: Response,
+  usuario: UsuarioSesion
+): string {
 
-  // FALLA: identificador predecible.
-  const id = `sesion_${contadorSesiones}`;
-
-  // FALLA: la sesión nunca expira.
+  // Genera un identificador aleatorio criptográficamente seguro.
+  const id = crypto.randomBytes(32).toString('hex');
+  const csrfToken = crypto.randomBytes(32).toString("hex");
+  
   sesiones.set(id, {
     usuario,
+    csrfToken,
     creadaEn: Date.now(),
-    expiraEn: null,
+    expiraEn: Date.now() + DURACION_SESION_MS,
   });
 
-  // FALLA: cookie sin httpOnly / secure / sameSite.
-  res.cookie('sid', id, { path: '/' });
+  // Conserva las opciones de seguridad existentes.
+  res.cookie('sid', id, {
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+  });
 
   return id;
 }
@@ -68,8 +80,19 @@ export function crearSesion(req: Request, res: Response, usuario: UsuarioSesion)
 export function obtenerSesion(req: Request): Sesion | null {
   const cookies = leerCookies(req);
   const id = cookies.sid;
+
   if (!id) return null;
-  return sesiones.get(id) || null;
+
+  const sesion = sesiones.get(id);
+
+  if (!sesion) return null;
+
+  if (sesion.expiraEn !== null && Date.now() >= sesion.expiraEn) {
+    sesiones.delete(id);
+    return null;
+  }
+
+  return sesion;
 }
 
 /** Cierra la sesión en el servidor (debería llamarse en el logout). */
