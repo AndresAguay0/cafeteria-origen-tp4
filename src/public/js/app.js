@@ -35,7 +35,7 @@
     // FALLA: esta función NO escapa nada, devuelve el valor tal cual.
     // La forma correcta de renderizar texto del servidor es escaparHtml()
     // (o textContent en vez de innerHTML).
-    return String(valor == null ? '' : valor);
+    return escaparHtml(valor);
   }
 
   function api(url, opciones) {
@@ -69,10 +69,13 @@
   }
 
   function escaparHtml(texto) {
-    var div = document.createElement('div');
-    div.textContent = texto == null ? '' : String(texto);
-    return div.innerHTML;
-  }
+  return String(texto == null ? '' : texto)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
   /* ------------------------------------------------------------- catálogo */
   function urlCatalogo() {
