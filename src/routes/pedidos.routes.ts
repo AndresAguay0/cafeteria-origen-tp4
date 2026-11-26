@@ -50,7 +50,15 @@ router.get('/', async (req, res, next) => {
  */
 router.get('/:id', async (req, res, next) => {
   try {
-    const pedido = await pedidos.obtenerConItems(req.params.id);
+    const id = Number(req.params.id);
+
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({
+        error: 'El ID debe ser un entero positivo.',
+      });
+    }
+
+    const pedido = await pedidos.obtenerConItems(id);
     if (!pedido) {
       return res.status(404).json({ error: 'Pedido no encontrado.' });
     }
@@ -63,10 +71,18 @@ router.get('/:id', async (req, res, next) => {
 /** PATCH /api/pedidos/:id/estado */
 router.patch('/:id/estado', async (req, res, next) => {
   try {
+    const id = Number(req.params.id);
+
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({
+        error: 'El ID debe ser un entero positivo.',
+      });
+    }
+
     const { estado } = req.body || {};
     // FALLA: no se valida el valor de `estado` (cualquier texto se acepta)
     // ni se comprueba el rol del que modifica el pedido.
-    const pedido = await pedidos.cambiarEstado(req.params.id, estado);
+    const pedido = await pedidos.cambiarEstado(id, estado);
     if (!pedido) {
       return res.status(404).json({ error: 'Pedido no encontrado.' });
     }

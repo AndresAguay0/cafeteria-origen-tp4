@@ -41,6 +41,14 @@ router.get('/usuarios', async (req, res, next) => {
 /** PUT /api/admin/usuarios/:id */
 router.put('/usuarios/:id', async (req, res, next) => {
   try {
+    const id = Number(req.params.id);
+
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({
+        error: 'El ID debe ser un entero positivo.',
+      });
+    }
+
     const { username, nombre, rol, password } = req.body || {};
 
     const cambios: Partial<Usuario> = {};
@@ -86,7 +94,7 @@ router.put('/usuarios/:id', async (req, res, next) => {
     }
 
     const usuario = await usuarios.actualizar(
-      req.params.id,
+      id,
       cambios
     );
 
@@ -119,7 +127,15 @@ router.post('/productos', async (req, res, next) => {
 /** PUT /api/admin/productos/:id */
 router.put('/productos/:id', async (req, res, next) => {
   try {
-    const producto = await catalogo.actualizar(req.params.id, req.body || {});
+    const id = Number(req.params.id);
+
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({
+        error: 'El ID debe ser un entero positivo.',
+      });
+    }
+
+    const producto = await catalogo.actualizar(id, req.body || {});
     if (!producto) {
       return res.status(404).json({ error: 'Producto no encontrado.' });
     }
@@ -137,7 +153,15 @@ router.put('/productos/:id', async (req, res, next) => {
  */
 router.delete('/productos/:id', async (req, res, next) => {
   try {
-    const producto = await catalogo.eliminar(req.params.id);
+    const id = Number(req.params.id);
+
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({
+        error: 'El ID debe ser un entero positivo.',
+      });
+    }
+
+    const producto = await catalogo.eliminar(id);
     if (!producto) {
       return res.status(404).json({ error: 'Producto no encontrado.' });
     }
